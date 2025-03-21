@@ -27,6 +27,8 @@ public class GameThread extends Thread {
                 synchronized(surfaceHolder) {
                     this.gameView.update();
                     this.gameView.draw(canvas);
+                    this.gameView
+                            .drawLabyrinth(canvas);
                 }
             } catch (Exception e) {}
             finally {
