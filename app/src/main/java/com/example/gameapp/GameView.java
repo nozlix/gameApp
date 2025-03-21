@@ -9,6 +9,10 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Point;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.util.Log;
 import android.graphics.RectF;
 import android.view.Display;
 import android.view.MotionEvent;
@@ -19,17 +23,24 @@ import android.view.WindowManager;
 import com.example.gameapp.utils.MazeGenerator;
 import com.example.gameapp.utils.MazePainter;
 
-public class GameView extends SurfaceView implements SurfaceHolder.Callback {
+import android.hardware.SensorManager;
+
+public class GameView extends SurfaceView implements SurfaceHolder.Callback, SensorEventListener {
     private GameThread thread;
+    private int y;
+    private int x=0;
 
     private MazePainter mazePainter;
+
 
     private Context context;
 
     // Variables pour le cercle
-    private float circleX; // Position X du centre du cercle
-    private float circleY; // Position Y du centre du cercle
+    private float circleX = 200; // Position X du centre du cercle
+    private float circleY = 200; // Position Y du centre du cercle
     private float circleRadius = 12; // Rayon du cercle en pixels
+
+    private float ambiantLight = 100; // Luminosité ambiante
     private Paint circlePaint; // Pinceau pour dessiner le cercle
     
     // Variables pour les boutons
@@ -38,7 +49,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private Paint buttonPaint;
     private Paint buttonTextPaint;
     private boolean isPaused = false;
-    
+
     // Variables pour la physique de la balle
     private float velocityX = 0;
     private float velocityY = 0;
@@ -57,7 +68,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private MazeCollisionHandler collisionHandler;
     private Paint wallPaint;   // Pinceau pour dessiner les murs
     private Bitmap wallTexture; // Texture pour les murs du labyrinthe
-    
+
     // Variables pour la sortie du labyrinthe
     private int exitGridX;     // Position X de la sortie dans la grille
     private int exitGridY;     // Position Y de la sortie dans la grille
@@ -87,6 +98,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private int currentMazeIndex = 0;
     private float lastLucidityThreshold = 1.0f;
 
+    private Paint backgroundPaint;
+    private Paint spotlightPaint;
+    private float ambientLight = 100;
+    private SensorManager sensorManager;
+
     public GameView(Context context, float initialLucidity) {
         super(context);
         this.context = context;
@@ -109,13 +125,13 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         buttonPaint = new Paint();
         buttonPaint.setColor(Color.argb(180, 50, 50, 50)); // Gris semi-transparent
         buttonPaint.setAntiAlias(true);
-        
+
         buttonTextPaint = new Paint();
         buttonTextPaint.setColor(Color.WHITE);
         buttonTextPaint.setTextSize(40);
         buttonTextPaint.setTextAlign(Paint.Align.CENTER);
         buttonTextPaint.setAntiAlias(true);
-        
+
         // Initialisation du pinceau pour les murs du labyrinthe
         wallPaint = new Paint();
         wallPaint.setColor(Color.BLACK);
@@ -127,7 +143,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         
         // Chargement de la texture pour les murs
         wallTexture = BitmapFactory.decodeResource(context.getResources(), R.drawable.champi);
-        
+
         // Exemple de labyrinthe simple (pour les tests)
         // Sera remplacé par le labyrinthe fourni par votre collègue
         createTestMaze();
@@ -139,6 +155,18 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         // Initialiser le gestionnaire de bonus
         bonusManager = new BonusManager(0, 0); // Les dimensions seront mises à jour dans surfaceChanged
         bonusManager.setContext(context); // Passer le contexte pour charger les images
+
+        getHolder().addCallback(this);
+
+        backgroundPaint = new Paint();
+        spotlightPaint = new Paint();
+        spotlightPaint.setColor(Color.WHITE);
+
+        sensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
+        Sensor lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
+        if (lightSensor != null) {
+            sensorManager.registerListener(this, lightSensor, SensorManager.SENSOR_DELAY_UI);
+        }
     }
     
     /**
@@ -193,7 +221,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 }
             }
         }
-        
+
         // Charger la texture du mur
         if (wallTexture == null) {
             wallTexture = BitmapFactory.decodeResource(context.getResources(), R.drawable.champi);
@@ -268,7 +296,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             bonusManager.updateMazeGrid(grid, cellSize);
             bonusManager.setMazeOffset(mazeOffsetX, mazeOffsetY);
         }
-        
+
         // Redimensionner la texture du mur si nécessaire
         if (wallTexture != null) {
             wallTexture = Bitmap.createScaledBitmap(wallTexture, (int)cellSize, (int)cellSize, true);
@@ -316,7 +344,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         // Initialiser les rectangles des boutons
         int buttonSize = Math.min(width, height) / 10;
         int padding = buttonSize / 4;
-        
+
         // Bouton de retour en haut à gauche
         backButtonRect = new RectF(
             padding,
@@ -324,7 +352,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             padding + buttonSize,
             padding + buttonSize
         );
-        
+
         // Bouton de pause en haut à droite
         pauseButtonRect = new RectF(
             width - padding - buttonSize,
@@ -332,7 +360,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             width - padding,
             padding + buttonSize
         );
-        
+
         // Mettre à jour les dimensions de l'écran pour le gestionnaire de bonus
         if (bonusManager != null) {
             bonusManager.updateScreenDimensions(width, height);
@@ -387,8 +415,16 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     public void draw(Canvas canvas) {
         super.draw(canvas);
         if (canvas != null) {
-            canvas.drawColor(Color.DKGRAY);
-            
+
+            int darkness = (int) Math.min(255, ambientLight * 2);
+            backgroundPaint.setColor(Color.rgb(darkness, darkness, darkness));
+            canvas.drawRect(0, 0, getWidth(), getHeight(), backgroundPaint);
+
+
+            // Dessiner le cercle
+            canvas.drawCircle(circleX, circleY, circleRadius, circlePaint);
+
+
             // Sauvegarder l'état actuel du canvas
             canvas.save();
             
@@ -440,7 +476,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             
             // Restaurer l'état du canvas
             canvas.restore();
-            
+
+
+
             // Dessiner les bonus
             if (bonusManager != null) {
                 bonusManager.draw(canvas);
@@ -451,39 +489,39 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             
             // Dessiner la jauge de lucidité
             lucidityManager.drawLucidityGauge(canvas, screenWidth, screenHeight);
-            
+
             // Dessiner les boutons
             if (backButtonRect != null && pauseButtonRect != null) {
                 // Bouton de retour
                 canvas.drawRoundRect(backButtonRect, 10, 10, buttonPaint);
-                canvas.drawText("←", 
+                canvas.drawText("←",
                     backButtonRect.left + backButtonRect.width() / 2,
-                    backButtonRect.top + backButtonRect.height() / 2 + buttonTextPaint.getTextSize() / 3, 
+                    backButtonRect.top + backButtonRect.height() / 2 + buttonTextPaint.getTextSize() / 3,
                     buttonTextPaint);
-                
+
                 // Bouton de pause
                 canvas.drawRoundRect(pauseButtonRect, 10, 10, buttonPaint);
                 if (isPaused) {
-                    canvas.drawText("▶", 
+                    canvas.drawText("▶",
                         pauseButtonRect.left + pauseButtonRect.width() / 2,
-                        pauseButtonRect.top + pauseButtonRect.height() / 2 + buttonTextPaint.getTextSize() / 3, 
+                        pauseButtonRect.top + pauseButtonRect.height() / 2 + buttonTextPaint.getTextSize() / 3,
                         buttonTextPaint);
                 } else {
-                    canvas.drawText("❚❚", 
+                    canvas.drawText("❚❚",
                         pauseButtonRect.left + pauseButtonRect.width() / 2,
-                        pauseButtonRect.top + pauseButtonRect.height() / 2 + buttonTextPaint.getTextSize() / 3, 
+                        pauseButtonRect.top + pauseButtonRect.height() / 2 + buttonTextPaint.getTextSize() / 3,
                         buttonTextPaint);
                 }
             }
-            
+
             // Si le jeu est en pause, afficher un message
             if (isPaused) {
                 Paint pauseTextPaint = new Paint(buttonTextPaint);
                 pauseTextPaint.setTextSize(80);
                 pauseTextPaint.setColor(Color.WHITE);
-                canvas.drawText("PAUSE", 
+                canvas.drawText("PAUSE",
                     screenWidth / 2,
-                    screenHeight / 2, 
+                    screenHeight / 2,
                     pauseTextPaint);
             }
         }
@@ -492,7 +530,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     public void update() {
         // Si le jeu est en pause, ne pas mettre à jour
         if (isPaused) return;
-        
+
         // Mise à jour du gestionnaire de lucidité
         lucidityManager.update();
         if(lucidityManager.getLucidity() == 0.0){
@@ -501,6 +539,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         
         // Mise à jour de la configuration du labyrinthe en fonction de la lucidité
         updateMazeConfiguration();
+
+        // Mise à jour du carré existant
+        x = (x + 1) % 300;
 
         // Vérifier si la balle est bloquée
         if (Math.abs(circleX - lastCircleX) < 0.1f && Math.abs(circleY - lastCircleY) < 0.1f) {
@@ -558,7 +599,10 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         
         // Vérifier si la balle a atteint la sortie
         checkExitReached();
-        
+
+        // Vérifier la collision avec le carré rouge existant
+        checkSquareCollision();
+
         // Collision avec les bords de l'écran
         if (circleX < circleRadius) {
             circleX = circleRadius;
@@ -604,6 +648,81 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
             context.startActivity(intent);
 
+    }
+
+
+    /**
+     * Vérifie et gère la collision avec le carré rouge existant
+     */
+    private void checkSquareCollision() {
+        // Trouver le point du carré le plus proche du centre du cercle
+        float closestX = Math.max(x, Math.min(circleX, x + 100));
+        float closestY = Math.max(y, Math.min(circleY, y + 100));
+
+        // Calculer la distance entre ce point et le centre du cercle
+        float distanceX = circleX - closestX;
+        float distanceY = circleY - closestY;
+        float distanceSquared = distanceX * distanceX + distanceY * distanceY;
+
+        // S'il y a collision
+        if (distanceSquared < circleRadius * circleRadius) {
+            // Calculer la distance et la normale
+            float distance = (float) Math.sqrt(distanceSquared);
+            float normalX = (distance > 0.0001f) ? distanceX / distance : 0;
+            float normalY = (distance > 0.0001f) ? distanceY / distance : 0;
+
+            // Repositionner la balle hors du carré
+            float penetration = circleRadius - distance;
+            circleX += normalX * penetration;
+            circleY += normalY * penetration;
+
+            // Calculer le rebond
+            float dotProduct = velocityX * normalX + velocityY * normalY;
+            velocityX = velocityX - 2 * dotProduct * normalX * damping;
+            velocityY = velocityY - 2 * dotProduct * normalY * damping;
+        }
+    }
+
+    // Méthode appelée par MainActivity pour mettre à jour la position de la balle
+    public void updateBallPosition(float accelerometerX, float accelerometerY) {
+        // Sauvegarder les valeurs de l'accéléromètre pour référence
+        lastAccelerometerX = accelerometerX;
+        lastAccelerometerY = accelerometerY;
+
+        // Appliquer les effets LSD aux contrôles
+        float[] modifiedControls = lucidityManager.applyControlEffects(accelerometerX, accelerometerY);
+
+        // Ajout de l'accélération aux vitesses
+        velocityX += modifiedControls[0] * gravity;
+        velocityY += modifiedControls[1] * gravity;
+
+        // Limiter les vitesses pour éviter les comportements extrêmes
+        float maxSpeed = 20.0f;
+        if (velocityX > maxSpeed) velocityX = maxSpeed;
+        if (velocityX < -maxSpeed) velocityX = -maxSpeed;
+        if (velocityY > maxSpeed) velocityY = maxSpeed;
+        if (velocityY < -maxSpeed) velocityY = -maxSpeed;
+    }
+
+    /**
+     * Augmente la lucidité (pour les bonus)
+     * @param amount Montant à ajouter (entre 0.0 et 1.0)
+     */
+    public void increaseLucidity(float amount) {
+        if (lucidityManager != null) {
+            lucidityManager.increaseLucidity(amount);
+        }
+    }
+
+    /**
+     * Récupère la valeur actuelle de lucidité
+     * @return Valeur entre 0.0 et 1.0
+     */
+    public float getLucidityValue() {
+        if (lucidityManager != null) {
+            return lucidityManager.getLucidity();
+        }
+        return 1.0f;
     }
 
     /**
@@ -752,6 +871,19 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         placeBallInMaze();
     }
 
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        Log.d("SensorChanged", "Sensor changed");
+        if (event.sensor.getType() == Sensor.TYPE_LIGHT) {
+            ambientLight = event.values[0];
+            invalidate();
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+
     /**
      * Vérifie si une position est sûre (pas dans un mur)
      */
@@ -806,47 +938,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         context.startActivity(intent);
     }
 
-    /**
-     * Augmente la lucidité (pour les bonus)
-     * @param amount Montant à ajouter (entre 0.0 et 1.0)
-     */
-    public void increaseLucidity(float amount) {
-        if (lucidityManager != null) {
-            lucidityManager.increaseLucidity(amount);
-        }
-    }
-    
-    /**
-     * Récupère la valeur actuelle de lucidité
-     * @return Valeur entre 0.0 et 1.0
-     */
-    public float getLucidityValue() {
-        if (lucidityManager != null) {
-            return lucidityManager.getLucidity();
-        }
-        return 1.0f;
-    }
 
-    // Méthode appelée par MainActivity pour mettre à jour la position de la balle
-    public void updateBallPosition(float accelerometerX, float accelerometerY) {
-        // Sauvegarder les valeurs de l'accéléromètre pour référence
-        lastAccelerometerX = accelerometerX;
-        lastAccelerometerY = accelerometerY;
-        
-        // Appliquer les effets LSD aux contrôles
-        float[] modifiedControls = lucidityManager.applyControlEffects(accelerometerX, accelerometerY);
-        
-        // Ajout de l'accélération aux vitesses
-        velocityX += modifiedControls[0] * gravity;
-        velocityY += modifiedControls[1] * gravity;
-        
-        // Limiter les vitesses pour éviter les comportements extrêmes
-        float maxSpeed = 20.0f;
-        if (velocityX > maxSpeed) velocityX = maxSpeed;
-        if (velocityX < -maxSpeed) velocityX = -maxSpeed;
-        if (velocityY > maxSpeed) velocityY = maxSpeed;
-        if (velocityY < -maxSpeed) velocityY = -maxSpeed;
-    }
+
+
 
     /**
      * Gère les événements tactiles pour interagir avec les boutons
@@ -857,14 +951,14 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
             float touchX = event.getX();
             float touchY = event.getY();
-            
+
             // Vérifier si on a touché le bouton de retour
             if (backButtonRect.contains(touchX, touchY)) {
                 // Retourner au menu principal
                 returnToMainMenu();
                 return true;
             }
-            
+
             // Vérifier si on a touché le bouton de pause
             if (pauseButtonRect.contains(touchX, touchY)) {
                 // Inverser l'état de pause
@@ -872,39 +966,39 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 return true;
             }
         }
-        
+
         return super.onTouchEvent(event);
     }
-    
+
     /**
      * Inverse l'état de pause du jeu
      */
     private void togglePause() {
         isPaused = !isPaused;
-        
+
         // Si on entre en pause, sauvegarder la lucidité actuelle
         if (isPaused && context instanceof GameActivity) {
             float currentLucidity = getLucidityValue();
             ((GameActivity) context).saveCurrentLucidity(currentLucidity);
         }
     }
-    
+
     /**
      * Renvoie au menu principal
      */
     private void returnToMainMenu() {
         // Arrêter le thread du jeu
         thread.setRunning(false);
-        
+
         // Créer une intention pour démarrer l'activité principale
         Intent intent = new Intent(context, MainActivity.class);
-        
+
         // Ajouter le drapeau pour effacer la pile d'activités
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        
+
         // Démarrer l'activité principale
         context.startActivity(intent);
-        
+
         // Terminer l'activité du jeu
         ((android.app.Activity)context).finish();
     }

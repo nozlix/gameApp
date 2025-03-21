@@ -4,6 +4,7 @@
 
     <!-- Permission pour utiliser les capteurs de mouvement -->
     <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"
