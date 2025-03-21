@@ -48,6 +48,12 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private MazeCollisionHandler collisionHandler;
     private Paint wallPaint;   // Pinceau pour dessiner les murs
     
+    // Variables pour la sortie du labyrinthe
+    private int exitGridX;     // Position X de la sortie dans la grille
+    private int exitGridY;     // Position Y de la sortie dans la grille
+    private Paint exitPaint;   // Pinceau pour dessiner la sortie
+    private boolean exitFound = false; // Indique si le joueur a trouvé la sortie
+    
     // Gestionnaire de lucidité pour les effets LSD
     private LucidityManager lucidityManager;
     private Matrix waveMatrix;
@@ -94,6 +100,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         wallPaint = new Paint();
         wallPaint.setColor(Color.BLACK);
         
+        // Initialisation du pinceau pour la sortie
+        exitPaint = new Paint();
+        exitPaint.setColor(Color.GREEN);
+        exitPaint.setAntiAlias(true);
+        
         // Exemple de labyrinthe simple (pour les tests)
         // Sera remplacé par le labyrinthe fourni par votre collègue
         createTestMaze();
@@ -130,6 +141,34 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
         // Initialiser le labyrinthe avec la première configuration
         mazeGrid = mazeConfigurations[0];
+        
+        // Définir la position de la sortie exactement au coin opposé de l'entrée
+        // (supposant que l'entrée est en haut à gauche)
+        exitGridX = mazeGrid[0].length - 1;
+        exitGridY = mazeGrid.length - 1;
+        
+        // S'assurer que cette position est bien un passage (0) et non un mur (1)
+        if (mazeGrid[exitGridY][exitGridX] == 1) {
+            // Si c'est un mur, chercher la cellule libre la plus proche du coin
+            for (int i = 1; i < Math.max(mazeGrid.length, mazeGrid[0].length); i++) {
+                // Vérifier horizontalement à gauche
+                if (exitGridX - i >= 0 && mazeGrid[exitGridY][exitGridX - i] == 0) {
+                    exitGridX = exitGridX - i;
+                    break;
+                }
+                // Vérifier verticalement en haut
+                if (exitGridY - i >= 0 && mazeGrid[exitGridY - i][exitGridX] == 0) {
+                    exitGridY = exitGridY - i;
+                    break;
+                }
+                // Vérifier diagonalement
+                if (exitGridX - i >= 0 && exitGridY - i >= 0 && mazeGrid[exitGridY - i][exitGridX - i] == 0) {
+                    exitGridX = exitGridX - i;
+                    exitGridY = exitGridY - i;
+                    break;
+                }
+            }
+        }
     }
     /**
      * Fait pivoter la grille du labyrinthe
@@ -326,6 +365,17 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                         }
                     }
                 }
+                
+                // Dessiner la sortie
+                float exitX = mazeOffsetX + exitGridX * cellSize;
+                float exitY = mazeOffsetY + exitGridY * cellSize;
+                canvas.drawRect(
+                    exitX,
+                    exitY,
+                    exitX + cellSize,
+                    exitY + cellSize,
+                    exitPaint
+                );
             }
             
             // Restaurer l'état du canvas
@@ -412,6 +462,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 velocityY = velocity[1];
             }
         }
+        
+        // Vérifier si la balle a atteint la sortie
+        checkExitReached();
         
         // Vérifier la collision avec le carré rouge existant
         checkSquareCollision();
@@ -568,6 +621,23 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             float newX = circleX;
             float newY = circleY;
             
+            // Faire pivoter la position de la sortie
+            for (int i = 0; i < rotationsNeeded; i++) {
+                // Sauvegarder les anciennes coordonnées
+                int oldExitX = exitGridX;
+                int oldExitY = exitGridY;
+                
+                if (lucidityIncreasing) {
+                    // Rotation anti-horaire
+                    exitGridX = oldExitY;
+                    exitGridY = cols - 1 - oldExitX;
+                } else {
+                    // Rotation horaire
+                    exitGridX = rows - 1 - oldExitY;
+                    exitGridY = oldExitX;
+                }
+            }
+            
             for (int i = 0; i < rotationsNeeded; i++) {
                 // Rotation de la balle autour du centre du labyrinthe
                 float dx = newX - centerX;
@@ -664,5 +734,45 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         return gridX >= 0 && gridX < mazeGrid[0].length && 
                gridY >= 0 && gridY < mazeGrid.length && 
                mazeGrid[gridY][gridX] == 0;
+    }
+
+    /**
+     * Vérifie si la balle a atteint la sortie du labyrinthe
+     */
+    private void checkExitReached() {
+        if (exitFound) return; // Ne vérifier qu'une seule fois
+        
+        // Convertir les coordonnées de la balle en coordonnées de grille
+        int ballGridX = (int)((circleX - mazeOffsetX) / cellSize);
+        int ballGridY = (int)((circleY - mazeOffsetY) / cellSize);
+        
+        // Calculer la distance entre le centre de la balle et le centre de la sortie
+        float exitCenterX = mazeOffsetX + (exitGridX + 0.5f) * cellSize;
+        float exitCenterY = mazeOffsetY + (exitGridY + 0.5f) * cellSize;
+        float dx = circleX - exitCenterX;
+        float dy = circleY - exitCenterY;
+        float distanceSquared = dx * dx + dy * dy;
+        
+        // Si la balle est suffisamment proche de la sortie (moins d'une demi-cellule)
+        if (distanceSquared < (cellSize * 0.7f) * (cellSize * 0.7f)) {
+            exitFound = true;
+            victory();
+        }
+    }
+
+    /**
+     * Appelle l'activité Victory lorsque le joueur gagne
+     */
+    private void victory() {
+        // Arrêter le jeu
+        thread.setRunning(false);
+        
+        // Lancer l'activité Victory
+        android.content.Intent intent = new android.content.Intent(context, VictoryActivity.class);
+        
+        // Passer des données supplémentaires si nécessaire
+        // intent.putExtra("score", someScore);
+        
+        context.startActivity(intent);
     }
 }
