@@ -126,4 +126,21 @@ public class Bonus {
     public float getY() {
         return y;
     }
+    
+    /**
+     * Définit la position du bonus
+     * @param x Nouvelle position X
+     * @param y Nouvelle position Y
+     */
+    public void setPosition(float x, float y) {
+        this.x = x;
+        this.y = y;
+    }
+    
+    /**
+     * Désactive le bonus sans le collecter
+     */
+    public void deactivate() {
+        active = false;
+    }
 } 
