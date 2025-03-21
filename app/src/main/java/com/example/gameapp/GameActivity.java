@@ -13,12 +13,22 @@ import android.view.Surface;
 import android.view.Window;
 import android.view.WindowManager;
 
+import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
 public class GameActivity extends Activity implements SensorEventListener {
 
     private SensorManager sensorManager;
     private Sensor accelerometer;
     private GameView gameView;
     private float accelerometerX, accelerometerY;
+
+    // Variable pour sauvegarder la lucidité entre les changements d'orientation
+    private float savedLucidity = 1.0f;
+    private static final String KEY_LUCIDITY = "lucidity";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,6 +37,11 @@ public class GameActivity extends Activity implements SensorEventListener {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
         this.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+        // Récupérer la lucidité sauvegardée si disponible
+        if (savedInstanceState != null) {
+            savedLucidity = savedInstanceState.getFloat(KEY_LUCIDITY, 1.0f);
+        }
 
         // Initialisation du gestionnaire de capteurs
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
@@ -51,8 +66,19 @@ public class GameActivity extends Activity implements SensorEventListener {
         editor.apply();
 
         // Créer et configurer GameView avec la valeur de y mise à jour
-        gameView = new GameView(this, valeur_y);
+        gameView = new GameView(this, valeur_y, savedLucidity);
         setContentView(gameView);
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+
+        // Sauvegarder la lucidité actuelle
+        if (gameView != null) {
+            savedLucidity = gameView.getLucidityValue();
+            outState.putFloat(KEY_LUCIDITY, savedLucidity);
+        }
     }
 
     @Override
@@ -67,6 +93,11 @@ public class GameActivity extends Activity implements SensorEventListener {
         super.onPause();
         // Désactiver l'écouteur du capteur lorsque l'application est en pause
         sensorManager.unregisterListener(this);
+
+        // Sauvegarder la lucidité actuelle
+        if (gameView != null) {
+            savedLucidity = gameView.getLucidityValue();
+        }
     }
 
     @Override
