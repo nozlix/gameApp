@@ -5,14 +5,25 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Point;
+import android.view.Display;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.View;
+import android.view.WindowManager;
+
+import com.example.gameapp.utils.MazeGenerator;
+import com.example.gameapp.utils.MazePainter;
 
 public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private GameThread thread;
     private int y;
     private int x=0;
+
+    private MazePainter mazePainter;
+
+
+    private Context context;
+
     // Variables pour le cercle
     private float circleX; // Position X du centre du cercle
     private float circleY; // Position Y du centre du cercle
@@ -48,17 +59,16 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private float lastCircleY = 0;
     private int stuckCounter = 0;
     private static final int MAX_STUCK_FRAMES = 15; // Nombre de frames avant de considérer la balle comme bloquée
-    
-    public GameView(Context context, int valeur_y) {
-        this(context, valeur_y, 1.0f); // Appel au constructeur avec lucidité par défaut
-    }
-    
+
     public GameView(Context context, int valeur_y, float initialLucidity) {
         super(context);
+        this.context = context;
         getHolder().addCallback(this);
         thread = new GameThread(getHolder(), this);
         setFocusable(true);
         this.y = valeur_y;
+
+        this.mazePainter = new MazePainter(context, 10, 10);
 
         // Initialisation du cercle
         circleX = 200; // Position X initiale
@@ -88,13 +98,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private void createTestMaze() {
         // Un petit labyrinthe de test 5x5
         // 1=mur, 0=passage
-        mazeGrid = new int[][] {
-            {1, 1, 1, 1, 1},
-            {1, 0, 0, 0, 1},
-            {1, 0, 1, 0, 1},
-            {1, 0, 0, 0, 1},
-            {1, 1, 1, 1, 1}
-        };
+        mazeGrid = this.mazePainter.getLabyrinth();
     }
     
     /**
@@ -248,6 +252,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             // Dessiner la jauge de lucidité
             lucidityManager.drawLucidityGauge(canvas, screenWidth, screenHeight);
         }
+
+        mazePainter.drawLabyrinth(canvas);
     }
     
     public void update() {
