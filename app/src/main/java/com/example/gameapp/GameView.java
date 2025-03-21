@@ -27,13 +27,13 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     // Variables pour le cercle
     private float circleX; // Position X du centre du cercle
     private float circleY; // Position Y du centre du cercle
-    private float circleRadius = 25; // Rayon du cercle en pixels
+    private float circleRadius = 12; // Rayon du cercle en pixels
     private Paint circlePaint; // Pinceau pour dessiner le cercle
     
     // Variables pour la physique de la balle
     private float velocityX = 0;
     private float velocityY = 0;
-    private float gravity = 0.5f; // Force de la gravité simulée
+    private float gravity = 0.05f; // Force de la gravité simulée
     private float damping = 0.95f; // Facteur de friction/amortissement
     
     // Dimensions de l'écran
@@ -59,6 +59,15 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private float lastCircleY = 0;
     private int stuckCounter = 0;
     private static final int MAX_STUCK_FRAMES = 15; // Nombre de frames avant de considérer la balle comme bloquée
+
+
+    // Gestionnaire de bonus
+    private BonusManager bonusManager;
+
+    // Variables pour les différentes configurations de labyrinthe
+    private int[][][] mazeConfigurations;
+    private int currentMazeIndex = 0;
+    private float lastLucidityThreshold = 1.0f;
 
     public GameView(Context context, int valeur_y, float initialLucidity) {
         super(context);
@@ -90,6 +99,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         // Initialiser le gestionnaire de lucidité avec la valeur sauvegardée
         lucidityManager = new LucidityManager(initialLucidity);
         waveMatrix = new Matrix();
+
+        // Initialiser le gestionnaire de bonus
+        bonusManager = new BonusManager(0, 0); // Les dimensions seront mises à jour dans surfaceChanged
     }
     
     /**
@@ -99,6 +111,111 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         // Un petit labyrinthe de test 5x5
         // 1=mur, 0=passage
         mazeGrid = this.mazePainter.getLabyrinth();
+        // Initialiser les configurations (5 rotations différentes)
+        mazeConfigurations = new int[5][][];
+
+        // Configuration 1 (100-81% de lucidité) - labyrinthe original
+        mazeConfigurations[0] = mazeGrid;
+
+        // Configuration 2 (80-61% de lucidité) - rotation 90°
+        mazeConfigurations[1] = rotateMaze(mazeGrid, 1);
+
+        // Configuration 3 (60-41% de lucidité) - rotation 180°
+        mazeConfigurations[2] = rotateMaze(mazeGrid, 2);
+
+        // Configuration 4 (40-21% de lucidité) - rotation 270°
+        mazeConfigurations[3] = rotateMaze(mazeGrid, 3);
+
+        // Configuration 5 (20-0% de lucidité) - mélange des murs (plus désorientant)
+        mazeConfigurations[4] = createCrazyMaze(mazeGrid);
+
+        // Initialiser le labyrinthe avec la première configuration
+        mazeGrid = mazeConfigurations[0];
+    }
+    /**
+     * Fait pivoter la grille du labyrinthe
+     * @param original La grille originale
+     * @param rotations Le nombre de rotations de 90° à effectuer (1-3)
+     * @return La grille pivotée
+     */
+    private int[][] rotateMaze(int[][] original, int rotations) {
+        int rows = original.length;
+        int cols = original[0].length;
+        int[][] result = new int[rows][cols];
+
+        // Normaliser le nombre de rotations (0-3)
+        rotations = rotations % 4;
+
+        // Pas de rotation nécessaire
+        if (rotations == 0) {
+            return original;
+        }
+
+        // Effectuer la rotation en fonction du nombre spécifié
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                switch (rotations) {
+                    case 1: // 90° dans le sens horaire
+                        result[j][rows - 1 - i] = original[i][j];
+                        break;
+                    case 2: // 180°
+                        result[rows - 1 - i][cols - 1 - j] = original[i][j];
+                        break;
+                    case 3: // 270° dans le sens horaire (ou 90° dans le sens anti-horaire)
+                        result[cols - 1 - j][i] = original[i][j];
+                        break;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Crée une version "folle" du labyrinthe pour le niveau le plus bas de lucidité
+     * Cette version conserve les murs extérieurs mais modifie aléatoirement les murs intérieurs
+     * @param baseMaze Le labyrinthe de base
+     * @return Une version modifiée du labyrinthe
+     */
+    private int[][] createCrazyMaze(int[][] baseMaze) {
+        int rows = baseMaze.length;
+        int cols = baseMaze[0].length;
+        int[][] result = new int[rows][cols];
+
+        // Copier d'abord la grille de base
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                result[i][j] = baseMaze[i][j];
+            }
+        }
+
+        // Conserver les murs extérieurs mais inverser certains murs intérieurs aléatoirement
+        for (int i = 1; i < rows - 1; i++) {
+            for (int j = 1; j < cols - 1; j++) {
+                // 50% de chance d'inverser un mur ou un passage
+                if (Math.random() > 0.5) {
+                    // Inverser (0->1 ou 1->0)
+                    result[i][j] = 1 - result[i][j];
+                }
+            }
+        }
+
+        // S'assurer qu'il y a au moins un passage
+        boolean hasPassage = false;
+        for (int i = 1; i < rows - 1 && !hasPassage; i++) {
+            for (int j = 1; j < cols - 1 && !hasPassage; j++) {
+                if (result[i][j] == 0) {
+                    hasPassage = true;
+                }
+            }
+        }
+
+        // Si aucun passage n'a été trouvé, en créer un
+        if (!hasPassage) {
+            result[1][1] = 0;
+        }
+
+        return result;
     }
     
     /**
@@ -116,6 +233,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             collisionHandler.updateMazeGrid(grid);
         }
         
+        // Mettre à jour la grille pour le gestionnaire de bonus
+        if (bonusManager != null) {
+            bonusManager.updateMazeGrid(grid, cellSize);
+        }
+
         // Placer la balle à une position valide dans le labyrinthe
         placeBallInMaze();
     }
@@ -155,6 +277,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         screenWidth = width;
         screenHeight = height;
         
+        // Mettre à jour les dimensions de l'écran pour le gestionnaire de bonus
+        if (bonusManager != null) {
+            bonusManager.updateScreenDimensions(width, height);
+        }
+
         // Repositionner la balle tout en préservant sa position relative
         circleX = relativeX * screenWidth;
         circleY = relativeY * screenHeight;
@@ -199,16 +326,16 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             retry = false;
         }
     }
-
+    
     @Override
     public void draw(Canvas canvas) {
         super.draw(canvas);
         if (canvas != null) {
             canvas.drawColor(Color.WHITE);
-
+            
             // Sauvegarder l'état actuel du canvas
             canvas.save();
-
+            
             // Dessiner le labyrinthe si disponible
             if (mazeGrid != null && cellSize > 0) {
                 for (int y = 0; y < mazeGrid.length; y++) {
@@ -217,11 +344,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                             // Calculer la position du mur
                             float wallX = x * cellSize;
                             float wallY = y * cellSize;
-
+                            
                             // Appliquer l'effet d'ondulation si nécessaire
                             canvas.save();
                             lucidityManager.applyWaveEffect(canvas, waveMatrix, wallX, wallY, cellSize, cellSize);
-
+                            
                             // Dessiner un mur
                             canvas.drawRect(
                                 wallX,
@@ -230,35 +357,42 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                                 wallY + cellSize,
                                 wallPaint
                             );
-
+                            
                             // Restaurer l'état du canvas
                             canvas.restore();
                         }
                     }
                 }
             }
-
+            
             // Restaurer l'état du canvas
             canvas.restore();
-
+            
             // Dessiner le carré rouge existant
             Paint squarePaint = new Paint();
             squarePaint.setColor(Color.rgb(250, 0, 0));
             canvas.drawRect(x, y, x + 100, y + 100, squarePaint);
 
+            // Dessiner les bonus
+            if (bonusManager != null) {
+                bonusManager.draw(canvas);
+            }
+
             // Dessiner le cercle
             canvas.drawCircle(circleX, circleY, circleRadius, circlePaint);
-
+            
             // Dessiner la jauge de lucidité
             lucidityManager.drawLucidityGauge(canvas, screenWidth, screenHeight);
         }
-
     }
     
     public void update() {
         // Mise à jour du gestionnaire de lucidité
         lucidityManager.update();
         
+        // Mise à jour de la configuration du labyrinthe en fonction de la lucidité
+        updateMazeConfiguration();
+
         // Mise à jour du carré existant
         x = (x + 1) % 300;
         
@@ -339,6 +473,17 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         // Appliquer l'amortissement/la friction
         velocityX *= damping;
         velocityY *= damping;
+
+        // Mise à jour du gestionnaire de bonus et collecte des bonus
+        if (bonusManager != null) {
+            bonusManager.updateBallPosition(circleX, circleY);
+            float bonusValue = bonusManager.update(circleRadius);
+
+            // Si un bonus a été collecté, augmenter la lucidité
+            if (bonusValue > 0) {
+                increaseLucidity(bonusValue);
+            }
+        }
     }
     
     /**
@@ -413,5 +558,95 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             return lucidityManager.getLucidity();
         }
         return 1.0f;
+    }
+
+    /**
+     * Met à jour la configuration du labyrinthe en fonction du niveau de lucidité
+     */
+    private void updateMazeConfiguration() {
+        if (lucidityManager == null || mazeConfigurations == null) return;
+
+        float lucidity = lucidityManager.getLucidity();
+        int newMazeIndex;
+
+        // Déterminer l'index de la configuration en fonction du niveau de lucidité
+        if (lucidity > 0.8f) {
+            newMazeIndex = 0;
+        } else if (lucidity > 0.6f) {
+            newMazeIndex = 1;
+        } else if (lucidity > 0.4f) {
+            newMazeIndex = 2;
+        } else if (lucidity > 0.2f) {
+            newMazeIndex = 3;
+        } else {
+            newMazeIndex = 4;
+        }
+
+        // Si la configuration doit changer
+        if (newMazeIndex != currentMazeIndex) {
+            currentMazeIndex = newMazeIndex;
+
+            // Sauvegarder la position relative de la balle
+            float relativeX = -1;
+            float relativeY = -1;
+
+            if (cellSize > 0) {
+                relativeX = circleX / cellSize;
+                relativeY = circleY / cellSize;
+            }
+
+            // Mettre à jour la grille du labyrinthe
+            mazeGrid = mazeConfigurations[currentMazeIndex];
+
+            // Mettre à jour le gestionnaire de collisions
+            if (collisionHandler != null && cellSize > 0) {
+                collisionHandler.updateMazeGrid(mazeGrid);
+            }
+
+            // Mettre à jour la grille pour le gestionnaire de bonus
+            if (bonusManager != null) {
+                bonusManager.updateMazeGrid(mazeGrid, cellSize);
+            }
+
+            // Si on a les coordonnées relatives, replacer la balle à une position sûre
+            if (relativeX >= 0 && relativeY >= 0) {
+                repositionBallSafely(relativeX, relativeY);
+            }
+        }
+    }
+
+    /**
+     * Repositionne la balle à une position sûre après un changement de labyrinthe
+     */
+    private void repositionBallSafely(float relativeX, float relativeY) {
+        int gridX = (int)relativeX;
+        int gridY = (int)relativeY;
+
+        // Vérifier si la position actuelle est sûre
+        if (gridX >= 0 && gridX < mazeGrid[0].length &&
+            gridY >= 0 && gridY < mazeGrid.length &&
+            mazeGrid[gridY][gridX] == 0) {
+            // Position actuelle est sûre, ajuster au centre de la cellule
+            circleX = (gridX + 0.5f) * cellSize;
+            circleY = (gridY + 0.5f) * cellSize;
+            return;
+        }
+
+        // Rechercher une position sûre à proximité
+        for (int distance = 1; distance < Math.max(mazeGrid.length, mazeGrid[0].length); distance++) {
+            for (int y = Math.max(0, gridY - distance); y <= Math.min(mazeGrid.length - 1, gridY + distance); y++) {
+                for (int x = Math.max(0, gridX - distance); x <= Math.min(mazeGrid[0].length - 1, gridX + distance); x++) {
+                    if (mazeGrid[y][x] == 0) {
+                        // Position sûre trouvée
+                        circleX = (x + 0.5f) * cellSize;
+                        circleY = (y + 0.5f) * cellSize;
+                        return;
+                    }
+                }
+            }
+        }
+
+        // Si aucune position sûre n'est trouvée, utiliser placeBallInMaze comme fallback
+        placeBallInMaze();
     }
 }
