@@ -3,11 +3,13 @@ package com.example.gameapp;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
+import android.view.Surface;
 import android.view.Window;
 import android.view.WindowManager;
 
@@ -76,14 +78,32 @@ public class MainActivity extends Activity implements SensorEventListener {
     @Override
     public void onSensorChanged(SensorEvent event) {
         if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
-            // Les valeurs de l'accéléromètre
-            // event.values[0] : Axe X (inclinaison gauche/droite)
-            // event.values[1] : Axe Y (inclinaison avant/arrière)
-            // event.values[2] : Axe Z (perpendiculaire à l'écran)
+            // Obtenir la rotation actuelle de l'écran
+            int rotation = getWindowManager().getDefaultDisplay().getRotation();
             
-            // Inverser le signe pour un mouvement naturel
-            accelerometerX = -event.values[0];
-            accelerometerY = event.values[1];
+            // Adapter les valeurs de l'accéléromètre en fonction de l'orientation
+            switch (rotation) {
+                case Surface.ROTATION_0: // Portrait, orientation normale
+                    // Les valeurs standards
+                    accelerometerX = -event.values[0];
+                    accelerometerY = event.values[1];
+                    break;
+                case Surface.ROTATION_90: // Paysage, rotation à gauche
+                    // Inverser les axes et le signe de Y
+                    accelerometerX = event.values[1];
+                    accelerometerY = event.values[0];
+                    break;
+                case Surface.ROTATION_180: // Portrait inversé
+                    // Inverser les deux signes
+                    accelerometerX = event.values[0];
+                    accelerometerY = -event.values[1];
+                    break;
+                case Surface.ROTATION_270: // Paysage, rotation à droite
+                    // Inverser les axes et le signe de X
+                    accelerometerX = -event.values[1];
+                    accelerometerY = -event.values[0];
+                    break;
+            }
             
             // Mettre à jour les données dans GameView
             if (gameView != null) {

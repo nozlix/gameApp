@@ -48,13 +48,32 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width,
                                int height) {
+        // Sauvegarder les positions relatives actuelles (en pourcentage)
+        float relativeX = 0.5f;
+        float relativeY = 0.5f;
+        
+        if (screenWidth > 0 && screenHeight > 0) {
+            relativeX = circleX / (float) screenWidth;
+            relativeY = circleY / (float) screenHeight;
+        }
+        
         // Mettre à jour les dimensions de l'écran
         screenWidth = width;
         screenHeight = height;
         
-        // Centrer la balle au démarrage
-        circleX = screenWidth / 2;
-        circleY = screenHeight / 2;
+        // Repositionner la balle tout en préservant sa position relative
+        circleX = relativeX * screenWidth;
+        circleY = relativeY * screenHeight;
+        
+        // S'assurer que la balle reste dans les limites
+        if (circleX < circleRadius) circleX = circleRadius;
+        if (circleX > screenWidth - circleRadius) circleX = screenWidth - circleRadius;
+        if (circleY < circleRadius) circleY = circleRadius;
+        if (circleY > screenHeight - circleRadius) circleY = screenHeight - circleRadius;
+        
+        // Réinitialiser les vitesses lors du changement d'orientation
+        velocityX = 0;
+        velocityY = 0;
     }
 
     @Override
