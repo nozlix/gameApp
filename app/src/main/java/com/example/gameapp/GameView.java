@@ -17,6 +17,17 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private float circleY; // Position Y du centre du cercle
     private float circleRadius = 25; // Rayon du cercle en pixels
     private Paint circlePaint; // Pinceau pour dessiner le cercle
+    
+    // Variables pour la physique de la balle
+    private float velocityX = 0;
+    private float velocityY = 0;
+    private float gravity = 0.5f; // Force de la gravité simulée
+    private float damping = 0.95f; // Facteur de friction/amortissement
+    
+    // Dimensions de l'écran
+    private int screenWidth;
+    private int screenHeight;
+    
     public GameView(Context context, int valeur_y) {
         super(context);
         getHolder().addCallback(this);
@@ -33,9 +44,17 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         circlePaint.setColor(Color.BLUE); // Couleur différente du carré
         circlePaint.setAntiAlias(true); // Pour un rendu plus lisse
     }
+    
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width,
                                int height) {
+        // Mettre à jour les dimensions de l'écran
+        screenWidth = width;
+        screenHeight = height;
+        
+        // Centrer la balle au démarrage
+        circleX = screenWidth / 2;
+        circleY = screenHeight / 2;
     }
 
     @Override
@@ -43,6 +62,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         thread.setRunning(true);
         thread.start();
     }
+    
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
         boolean retry = true;
@@ -56,6 +76,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             retry = false;
         }
     }
+    
     @Override
     public void draw(Canvas canvas) {
         super.draw(canvas);
@@ -70,8 +91,41 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             canvas.drawCircle(circleX, circleY, circleRadius, circlePaint);
         }
     }
+    
     public void update() {
+        // Mise à jour du carré existant
         x = (x + 1) % 300;
+        
+        // Mise à jour de la position de la balle en fonction de sa vitesse
+        circleX += velocityX;
+        circleY += velocityY;
+        
+        // Collision avec les bords de l'écran
+        if (circleX < circleRadius) {
+            circleX = circleRadius;
+            velocityX = -velocityX * damping; // Rebond avec perte d'énergie
+        } else if (circleX > screenWidth - circleRadius) {
+            circleX = screenWidth - circleRadius;
+            velocityX = -velocityX * damping;
+        }
+        
+        if (circleY < circleRadius) {
+            circleY = circleRadius;
+            velocityY = -velocityY * damping;
+        } else if (circleY > screenHeight - circleRadius) {
+            circleY = screenHeight - circleRadius;
+            velocityY = -velocityY * damping;
+        }
+        
+        // Appliquer l'amortissement/la friction
+        velocityX *= damping;
+        velocityY *= damping;
     }
-
+    
+    // Méthode appelée par MainActivity pour mettre à jour la position de la balle
+    public void updateBallPosition(float accelerometerX, float accelerometerY) {
+        // Ajout de l'accélération aux vitesses
+        velocityX += accelerometerX * gravity;
+        velocityY += accelerometerY * gravity;
+    }
 }
