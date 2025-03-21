@@ -1,6 +1,8 @@
 package com.example.gameapp;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
@@ -16,8 +18,6 @@ import com.example.gameapp.utils.MazePainter;
 
 public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private GameThread thread;
-    private int y;
-    private int x=0;
 
     private MazePainter mazePainter;
 
@@ -47,6 +47,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private float mazeOffsetY; // Décalage Y pour centrer le labyrinthe
     private MazeCollisionHandler collisionHandler;
     private Paint wallPaint;   // Pinceau pour dessiner les murs
+    private Bitmap wallTexture; // Texture pour les murs du labyrinthe
     
     // Variables pour la sortie du labyrinthe
     private int exitGridX;     // Position X de la sortie dans la grille
@@ -77,13 +78,12 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private int currentMazeIndex = 0;
     private float lastLucidityThreshold = 1.0f;
 
-    public GameView(Context context, int valeur_y, float initialLucidity) {
+    public GameView(Context context, float initialLucidity) {
         super(context);
         this.context = context;
         getHolder().addCallback(this);
         thread = new GameThread(getHolder(), this);
         setFocusable(true);
-        this.y = valeur_y;
 
         this.mazePainter = new MazePainter(context, 10, 10);
 
@@ -105,6 +105,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         exitPaint.setColor(Color.GREEN);
         exitPaint.setAntiAlias(true);
         
+        // Chargement de la texture pour les murs
+        wallTexture = BitmapFactory.decodeResource(context.getResources(), R.drawable.champi);
+        
         // Exemple de labyrinthe simple (pour les tests)
         // Sera remplacé par le labyrinthe fourni par votre collègue
         createTestMaze();
@@ -115,6 +118,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
         // Initialiser le gestionnaire de bonus
         bonusManager = new BonusManager(0, 0); // Les dimensions seront mises à jour dans surfaceChanged
+        bonusManager.setContext(context); // Passer le contexte pour charger les images
     }
     
     /**
@@ -168,6 +172,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                     break;
                 }
             }
+        }
+        
+        // Charger la texture du mur
+        if (wallTexture == null) {
+            wallTexture = BitmapFactory.decodeResource(context.getResources(), R.drawable.champi);
         }
     }
     /**
@@ -238,6 +247,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         if (bonusManager != null) {
             bonusManager.updateMazeGrid(grid, cellSize);
             bonusManager.setMazeOffset(mazeOffsetX, mazeOffsetY);
+        }
+        
+        // Redimensionner la texture du mur si nécessaire
+        if (wallTexture != null) {
+            wallTexture = Bitmap.createScaledBitmap(wallTexture, (int)cellSize, (int)cellSize, true);
         }
 
         // Placer la balle à une position valide dans le labyrinthe
@@ -351,14 +365,20 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                             canvas.save();
                             lucidityManager.applyWaveEffect(canvas, waveMatrix, wallX, wallY, cellSize, cellSize);
                             
-                            // Dessiner un mur
-                            canvas.drawRect(
-                                wallX,
-                                wallY,
-                                wallX + cellSize,
-                                wallY + cellSize,
-                                wallPaint
-                            );
+                            // Dessiner un mur avec texture ou couleur simple
+                            if (wallTexture != null) {
+                                // Avec texture
+                                canvas.drawBitmap(wallTexture, wallX, wallY, null);
+                            } else {
+                                // Fallback avec couleur unie
+                                canvas.drawRect(
+                                    wallX,
+                                    wallY,
+                                    wallX + cellSize,
+                                    wallY + cellSize,
+                                    wallPaint
+                                );
+                            }
                             
                             // Restaurer l'état du canvas
                             canvas.restore();
@@ -381,11 +401,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             // Restaurer l'état du canvas
             canvas.restore();
             
-            // Dessiner le carré rouge existant
-            Paint squarePaint = new Paint();
-            squarePaint.setColor(Color.rgb(250, 0, 0));
-            canvas.drawRect(x, y, x + 100, y + 100, squarePaint);
-
             // Dessiner les bonus
             if (bonusManager != null) {
                 bonusManager.draw(canvas);
@@ -409,9 +424,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         // Mise à jour de la configuration du labyrinthe en fonction de la lucidité
         updateMazeConfiguration();
 
-        // Mise à jour du carré existant
-        x = (x + 1) % 300;
-        
         // Vérifier si la balle est bloquée
         if (Math.abs(circleX - lastCircleX) < 0.1f && Math.abs(circleY - lastCircleY) < 0.1f) {
             stuckCounter++;
@@ -469,9 +481,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         // Vérifier si la balle a atteint la sortie
         checkExitReached();
         
-        // Vérifier la collision avec le carré rouge existant
-        checkSquareCollision();
-        
         // Collision avec les bords de l'écran
         if (circleX < circleRadius) {
             circleX = circleRadius;
@@ -517,81 +526,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
             context.startActivity(intent);
 
-    }
-
-    
-    /**
-     * Vérifie et gère la collision avec le carré rouge existant
-     */
-    private void checkSquareCollision() {
-        // Trouver le point du carré le plus proche du centre du cercle
-        float closestX = Math.max(x, Math.min(circleX, x + 100));
-        float closestY = Math.max(y, Math.min(circleY, y + 100));
-        
-        // Calculer la distance entre ce point et le centre du cercle
-        float distanceX = circleX - closestX;
-        float distanceY = circleY - closestY;
-        float distanceSquared = distanceX * distanceX + distanceY * distanceY;
-        
-        // S'il y a collision
-        if (distanceSquared < circleRadius * circleRadius) {
-            // Calculer la distance et la normale
-            float distance = (float) Math.sqrt(distanceSquared);
-            float normalX = (distance > 0.0001f) ? distanceX / distance : 0;
-            float normalY = (distance > 0.0001f) ? distanceY / distance : 0;
-            
-            // Repositionner la balle hors du carré
-            float penetration = circleRadius - distance;
-            circleX += normalX * penetration;
-            circleY += normalY * penetration;
-            
-            // Calculer le rebond
-            float dotProduct = velocityX * normalX + velocityY * normalY;
-            velocityX = velocityX - 2 * dotProduct * normalX * damping;
-            velocityY = velocityY - 2 * dotProduct * normalY * damping;
-        }
-    }
-    
-    // Méthode appelée par MainActivity pour mettre à jour la position de la balle
-    public void updateBallPosition(float accelerometerX, float accelerometerY) {
-        // Sauvegarder les valeurs de l'accéléromètre pour référence
-        lastAccelerometerX = accelerometerX;
-        lastAccelerometerY = accelerometerY;
-        
-        // Appliquer les effets LSD aux contrôles
-        float[] modifiedControls = lucidityManager.applyControlEffects(accelerometerX, accelerometerY);
-        
-        // Ajout de l'accélération aux vitesses
-        velocityX += modifiedControls[0] * gravity;
-        velocityY += modifiedControls[1] * gravity;
-        
-        // Limiter les vitesses pour éviter les comportements extrêmes
-        float maxSpeed = 20.0f;
-        if (velocityX > maxSpeed) velocityX = maxSpeed;
-        if (velocityX < -maxSpeed) velocityX = -maxSpeed;
-        if (velocityY > maxSpeed) velocityY = maxSpeed;
-        if (velocityY < -maxSpeed) velocityY = -maxSpeed;
-    }
-    
-    /**
-     * Augmente la lucidité (pour les bonus)
-     * @param amount Montant à ajouter (entre 0.0 et 1.0)
-     */
-    public void increaseLucidity(float amount) {
-        if (lucidityManager != null) {
-            lucidityManager.increaseLucidity(amount);
-        }
-    }
-    
-    /**
-     * Récupère la valeur actuelle de lucidité
-     * @return Valeur entre 0.0 et 1.0
-     */
-    public float getLucidityValue() {
-        if (lucidityManager != null) {
-            return lucidityManager.getLucidity();
-        }
-        return 1.0f;
     }
 
     /**
@@ -792,5 +726,47 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         // intent.putExtra("score", someScore);
         
         context.startActivity(intent);
+    }
+
+    /**
+     * Augmente la lucidité (pour les bonus)
+     * @param amount Montant à ajouter (entre 0.0 et 1.0)
+     */
+    public void increaseLucidity(float amount) {
+        if (lucidityManager != null) {
+            lucidityManager.increaseLucidity(amount);
+        }
+    }
+    
+    /**
+     * Récupère la valeur actuelle de lucidité
+     * @return Valeur entre 0.0 et 1.0
+     */
+    public float getLucidityValue() {
+        if (lucidityManager != null) {
+            return lucidityManager.getLucidity();
+        }
+        return 1.0f;
+    }
+
+    // Méthode appelée par MainActivity pour mettre à jour la position de la balle
+    public void updateBallPosition(float accelerometerX, float accelerometerY) {
+        // Sauvegarder les valeurs de l'accéléromètre pour référence
+        lastAccelerometerX = accelerometerX;
+        lastAccelerometerY = accelerometerY;
+        
+        // Appliquer les effets LSD aux contrôles
+        float[] modifiedControls = lucidityManager.applyControlEffects(accelerometerX, accelerometerY);
+        
+        // Ajout de l'accélération aux vitesses
+        velocityX += modifiedControls[0] * gravity;
+        velocityY += modifiedControls[1] * gravity;
+        
+        // Limiter les vitesses pour éviter les comportements extrêmes
+        float maxSpeed = 20.0f;
+        if (velocityX > maxSpeed) velocityX = maxSpeed;
+        if (velocityX < -maxSpeed) velocityX = -maxSpeed;
+        if (velocityY > maxSpeed) velocityY = maxSpeed;
+        if (velocityY < -maxSpeed) velocityY = -maxSpeed;
     }
 }

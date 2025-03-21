@@ -47,26 +47,8 @@ public class GameActivity extends Activity implements SensorEventListener {
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 
-        // Récupérer les préférences partagées
-        SharedPreferences sharedPref = this.getPreferences(Context.MODE_PRIVATE);
-
-        // Récupérer le nombre de lancements précédents (par défaut 0)
-        int nb_lancements = sharedPref.getInt("nb_lancements", 0);
-
-        // Incrémenter le compteur de lancements
-        nb_lancements++;
-
-        // Calculer la nouvelle valeur de y
-        int valeur_y = (100 * nb_lancements) % 400;
-
-        // Sauvegarder les nouvelles valeurs
-        SharedPreferences.Editor editor = sharedPref.edit();
-        editor.putInt("nb_lancements", nb_lancements);
-        editor.putInt("valeur_y", valeur_y);
-        editor.apply();
-
-        // Créer et configurer GameView avec la valeur de y mise à jour
-        gameView = new GameView(this, valeur_y, savedLucidity);
+        // Créer et configurer GameView avec la lucidité sauvegardée
+        gameView = new GameView(this, savedLucidity);
         setContentView(gameView);
     }
 
