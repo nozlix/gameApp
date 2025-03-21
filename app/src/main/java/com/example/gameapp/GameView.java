@@ -402,6 +402,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     public void update() {
         // Mise à jour du gestionnaire de lucidité
         lucidityManager.update();
+        if(lucidityManager.getLucidity() == 0.0){
+            gameOver();
+        }
         
         // Mise à jour de la configuration du labyrinthe en fonction de la lucidité
         updateMazeConfiguration();
@@ -501,6 +504,21 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             }
         }
     }
+
+    private void gameOver() {
+            // Arrêter le jeu
+            thread.setRunning(false);
+
+            // Lancer l'activité Victory
+            android.content.Intent intent = new android.content.Intent(context, GameOverActivity.class);
+
+            // Passer des données supplémentaires si nécessaire
+            // intent.putExtra("score", someScore);
+
+            context.startActivity(intent);
+
+    }
+
     
     /**
      * Vérifie et gère la collision avec le carré rouge existant
