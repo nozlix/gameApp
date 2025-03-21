@@ -40,7 +40,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Sen
     private float circleY = 200; // Position Y du centre du cercle
     private float circleRadius = 12; // Rayon du cercle en pixels
 
-    private float ambiantLight = 100; // Luminosité ambiante
     private Paint circlePaint; // Pinceau pour dessiner le cercle
     
     // Variables pour les boutons
@@ -96,7 +95,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Sen
     // Variables pour les différentes configurations de labyrinthe
     private int[][][] mazeConfigurations;
     private int currentMazeIndex = 0;
-    private float lastLucidityThreshold = 1.0f;
 
     private Paint backgroundPaint;
     private Paint spotlightPaint;
@@ -145,7 +143,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Sen
         wallTexture = BitmapFactory.decodeResource(context.getResources(), R.drawable.champi);
 
         // Exemple de labyrinthe simple (pour les tests)
-        // Sera remplacé par le labyrinthe fourni par votre collègue
         createTestMaze();
         
         // Initialiser le gestionnaire de lucidité avec la valeur sauvegardée
@@ -153,8 +150,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Sen
         waveMatrix = new Matrix();
 
         // Initialiser le gestionnaire de bonus
-        bonusManager = new BonusManager(0, 0); // Les dimensions seront mises à jour dans surfaceChanged
-        bonusManager.setContext(context); // Passer le contexte pour charger les images
+        bonusManager = new BonusManager(0, 0);
+        bonusManager.setContext(context);
 
         getHolder().addCallback(this);
 
@@ -173,8 +170,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Sen
      * Crée un labyrinthe de test simple
      */
     private void createTestMaze() {
-        // Un petit labyrinthe de test 5x5
-        // 1=mur, 0=passage
+
         mazeGrid = this.mazePainter.getLabyrinth();
         // Initialiser les configurations (4 rotations différentes)
         mazeConfigurations = new int[4][][];
@@ -420,7 +416,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Sen
             backgroundPaint.setColor(Color.rgb(darkness, darkness, darkness));
             canvas.drawRect(0, 0, getWidth(), getHeight(), backgroundPaint);
 
-
             // Dessiner le cercle
             canvas.drawCircle(circleX, circleY, circleRadius, circlePaint);
 
@@ -476,7 +471,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Sen
             
             // Restaurer l'état du canvas
             canvas.restore();
-
 
 
             // Dessiner les bonus
@@ -640,14 +634,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Sen
             // Arrêter le jeu
             thread.setRunning(false);
 
-            // Lancer l'activité Victory
             android.content.Intent intent = new android.content.Intent(context, GameOverActivity.class);
-
-            // Passer des données supplémentaires si nécessaire
-            // intent.putExtra("score", someScore);
-
             context.startActivity(intent);
-
     }
 
 
@@ -937,9 +925,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Sen
         
         context.startActivity(intent);
     }
-
-
-
 
 
     /**
