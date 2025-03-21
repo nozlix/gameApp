@@ -1,4 +1,4 @@
-package com.example.gameapp;
+package com.example.gameapp.utils;
 
 import java.util.Random;
 

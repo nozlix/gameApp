@@ -5,21 +5,19 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
-import android.util.Log;
 import android.view.Display;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.View;
 import android.view.WindowManager;
+
+import com.example.gameapp.utils.MazeGenerator;
+import com.example.gameapp.utils.MazePainter;
 
 public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private GameThread thread;
     private int y;
     private int x=0;
-    private int[][] labyrinth;
-    private int cellSize;
-    private int startX;
-    private int startY;
+    private MazePainter mazePainter;
 
 
     private Context context;
@@ -32,8 +30,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         setFocusable(true);
         this.y = valeur_y;
 
-        MazeGenerator generator = new MazeGenerator(10, 10);
-        labyrinth = generator.getMaze();
+        this.mazePainter = new MazePainter(context, 10, 10);
 
 
 
@@ -72,61 +69,10 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             canvas.drawRect(x, y, x + 100, y + 100, paint);
         }
 
-        drawLabyrinth(canvas);
+        mazePainter.drawLabyrinth(canvas);
     }
     public void update() {
         x = (x + 1) % 300;
-    }
-
-    // Function to draw the labyrinth
-    public void drawLabyrinth(Canvas canvas) {
-        //this.initializeLabyrinth();
-        this.calculateLabyrinthDimensions(canvas.getWidth(), canvas.getHeight());
-        if (labyrinth == null){
-            return;
-        }
-        Paint wallPaint = new Paint();
-        wallPaint.setColor(Color.BLACK);
-
-        Paint pathPaint = new Paint();
-        pathPaint.setColor(Color.GREEN);  // Blanc pour les chemins
-        pathPaint.setStyle(Paint.Style.FILL);
-
-        for (int i = 0; i < labyrinth.length; i++) {
-            for (int j = 0; j < labyrinth[i].length; j++) {
-                if (labyrinth[i][j] == 1) { // 1 represents a wall
-                    canvas.drawRect(startX + j * cellSize, startY + i * cellSize,
-                            startX + (j + 1) * cellSize, startY + (i + 1) * cellSize, wallPaint);
-                } /*else {  // Chemin
-                    canvas.drawRect(startX + j * cellSize, startY + i  * cellSize,
-                            startX + (j + 1) * cellSize, startY + (i + 1) * cellSize, pathPaint);
-                }*/
-            }
-        }
-    }
-
-    private void calculateLabyrinthDimensions(int surfaceWidth, int surfaceHeight) {
-        // Get the screen dimensions
-        WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
-        Display display = wm.getDefaultDisplay();
-        Point size = new Point();
-        display.getSize(size);
-        int screenWidth = size.x;
-        int screenHeight = size.y;
-
-        // Calculate the maximum possible cell size based on the smaller dimension
-        int maxCellSize = Math.min(screenWidth / labyrinth[0].length, screenHeight / labyrinth.length);
-
-        // Choose a cell size that is a bit smaller than the maximum to add some padding
-        cellSize = (int) (maxCellSize * 1); // 80% of the maximum size
-
-        // Calculate the total width and height of the labyrinth
-        int labyrinthWidth = labyrinth[0].length * cellSize;
-        int labyrinthHeight = labyrinth.length * cellSize;
-
-        // Calculate the starting position to center the labyrinth
-        startX = (screenWidth - labyrinthWidth) / 2;
-        startY = (screenHeight - labyrinthHeight) / 2;
     }
 
 
