@@ -199,16 +199,16 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             retry = false;
         }
     }
-    
+
     @Override
     public void draw(Canvas canvas) {
         super.draw(canvas);
         if (canvas != null) {
             canvas.drawColor(Color.WHITE);
-            
+
             // Sauvegarder l'état actuel du canvas
             canvas.save();
-            
+
             // Dessiner le labyrinthe si disponible
             if (mazeGrid != null && cellSize > 0) {
                 for (int y = 0; y < mazeGrid.length; y++) {
@@ -217,11 +217,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                             // Calculer la position du mur
                             float wallX = x * cellSize;
                             float wallY = y * cellSize;
-                            
+
                             // Appliquer l'effet d'ondulation si nécessaire
                             canvas.save();
                             lucidityManager.applyWaveEffect(canvas, waveMatrix, wallX, wallY, cellSize, cellSize);
-                            
+
                             // Dessiner un mur
                             canvas.drawRect(
                                 wallX,
@@ -230,17 +230,17 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                                 wallY + cellSize,
                                 wallPaint
                             );
-                            
+
                             // Restaurer l'état du canvas
                             canvas.restore();
                         }
                     }
                 }
             }
-            
+
             // Restaurer l'état du canvas
             canvas.restore();
-            
+
             // Dessiner le carré rouge existant
             Paint squarePaint = new Paint();
             squarePaint.setColor(Color.rgb(250, 0, 0));
@@ -248,12 +248,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
             // Dessiner le cercle
             canvas.drawCircle(circleX, circleY, circleRadius, circlePaint);
-            
+
             // Dessiner la jauge de lucidité
             lucidityManager.drawLucidityGauge(canvas, screenWidth, screenHeight);
         }
 
-        mazePainter.drawLabyrinth(canvas);
     }
     
     public void update() {
