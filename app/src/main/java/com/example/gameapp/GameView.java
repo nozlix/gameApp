@@ -6,6 +6,10 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Point;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.util.Log;
 import android.view.Display;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -14,7 +18,9 @@ import android.view.WindowManager;
 import com.example.gameapp.utils.MazeGenerator;
 import com.example.gameapp.utils.MazePainter;
 
-public class GameView extends SurfaceView implements SurfaceHolder.Callback {
+import android.hardware.SensorManager;
+
+public class GameView extends SurfaceView implements SurfaceHolder.Callback, SensorEventListener {
     private GameThread thread;
     private int y;
     private int x=0;
@@ -25,9 +31,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private Context context;
 
     // Variables pour le cercle
-    private float circleX; // Position X du centre du cercle
-    private float circleY; // Position Y du centre du cercle
+    private float circleX = 200; // Position X du centre du cercle
+    private float circleY = 200; // Position Y du centre du cercle
     private float circleRadius = 12; // Rayon du cercle en pixels
+
+    private float ambiantLight = 100; // Luminosité ambiante
     private Paint circlePaint; // Pinceau pour dessiner le cercle
     
     // Variables pour la physique de la balle
@@ -77,6 +85,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private int currentMazeIndex = 0;
     private float lastLucidityThreshold = 1.0f;
 
+    private Paint backgroundPaint;
+    private Paint spotlightPaint;
+    private float ambientLight = 100;
+    private SensorManager sensorManager;
+
     public GameView(Context context, int valeur_y, float initialLucidity) {
         super(context);
         this.context = context;
@@ -115,6 +128,18 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
         // Initialiser le gestionnaire de bonus
         bonusManager = new BonusManager(0, 0); // Les dimensions seront mises à jour dans surfaceChanged
+
+        getHolder().addCallback(this);
+
+        backgroundPaint = new Paint();
+        spotlightPaint = new Paint();
+        spotlightPaint.setColor(Color.WHITE);
+
+        sensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
+        Sensor lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
+        if (lightSensor != null) {
+            sensorManager.registerListener(this, lightSensor, SensorManager.SENSOR_DELAY_UI);
+        }
     }
     
     /**
@@ -333,8 +358,37 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     public void draw(Canvas canvas) {
         super.draw(canvas);
         if (canvas != null) {
-            canvas.drawColor(Color.WHITE);
-            
+
+            int darkness = (int) Math.min(255, ambientLight * 2);
+            backgroundPaint.setColor(Color.rgb(darkness, darkness, darkness));
+            canvas.drawRect(0, 0, getWidth(), getHeight(), backgroundPaint);
+
+            if(darkness < 128){
+                Paint lightCirclePaint = new Paint();
+                lightCirclePaint.setColor(Color.argb(150,255,255,255));
+                canvas.drawCircle(circleX, circleY, circleRadius * 3, lightCirclePaint);
+            }
+
+            int squareDarkness = Math.min(0, 255 - darkness);
+            // Dessiner le carré rouge existant
+            Paint squarePaint = new Paint();
+            squarePaint.setColor(Color.rgb(squareDarkness, 0, 0));
+            canvas.drawRect(x, y, x + 100, y + 100, squarePaint);
+
+            Paint redSquarePaint = new Paint();
+            if(darkness < 128){
+                int redSquareDarkness = Math.min(0,255 - darkness);
+                redSquarePaint.setColor(Color.rgb(redSquareDarkness, 0, 0));
+            } else{
+                redSquarePaint.setColor(Color.RED);
+            }
+
+            canvas.drawRect(x, y, x + 100, y + 100, redSquarePaint);
+
+            // Dessiner le cercle
+            canvas.drawCircle(circleX, circleY, circleRadius, circlePaint);
+
+
             // Sauvegarder l'état actuel du canvas
             canvas.save();
             
@@ -380,19 +434,12 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             
             // Restaurer l'état du canvas
             canvas.restore();
-            
-            // Dessiner le carré rouge existant
-            Paint squarePaint = new Paint();
-            squarePaint.setColor(Color.rgb(250, 0, 0));
-            canvas.drawRect(x, y, x + 100, y + 100, squarePaint);
+
 
             // Dessiner les bonus
             if (bonusManager != null) {
                 bonusManager.draw(canvas);
             }
-
-            // Dessiner le cercle
-            canvas.drawCircle(circleX, circleY, circleRadius, circlePaint);
             
             // Dessiner la jauge de lucidité
             lucidityManager.drawLucidityGauge(canvas, screenWidth, screenHeight);
@@ -740,6 +787,19 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         placeBallInMaze();
     }
 
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        Log.d("SensorChanged", "Sensor changed");
+        if (event.sensor.getType() == Sensor.TYPE_LIGHT) {
+            ambientLight = event.values[0];
+            invalidate();
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+
     /**
      * Vérifie si une position est sûre (pas dans un mur)
      */
@@ -793,4 +853,5 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         
         context.startActivity(intent);
     }
+
 }
