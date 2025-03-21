@@ -6,6 +6,8 @@ package com.example.gameapp;
 public class MazeCollisionHandler {
     private int[][] mazeGrid;      // La grille du labyrinthe (1=mur, 0=passage)
     private float cellSize;        // Taille d'une cellule en pixels
+    private float mazeOffsetX = 0;
+    private float mazeOffsetY = 0;
     private int rows, cols;        // Dimensions de la grille
     
     /**
@@ -18,6 +20,16 @@ public class MazeCollisionHandler {
         this.cellSize = cellSize;
         this.rows = mazeGrid.length;
         this.cols = mazeGrid[0].length;
+    }
+    
+    /**
+     * Définit les offsets du labyrinthe pour le centrage
+     * @param offsetX Décalage horizontal
+     * @param offsetY Décalage vertical
+     */
+    public void setMazeOffset(float offsetX, float offsetY) {
+        this.mazeOffsetX = offsetX;
+        this.mazeOffsetY = offsetY;
     }
     
     /**
@@ -39,57 +51,63 @@ public class MazeCollisionHandler {
      * @return Les informations de collision
      */
     public CollisionInfo checkCollision(float ballX, float ballY, float ballRadius) {
+        CollisionInfo info = new CollisionInfo();
+        
         // Convertir les coordonnées de la balle en indices de la grille
-        int gridX = (int)(ballX / cellSize);
-        int gridY = (int)(ballY / cellSize);
+        int gridX = (int)((ballX - mazeOffsetX) / cellSize);
+        int gridY = (int)((ballY - mazeOffsetY) / cellSize);
         
-        // Variables pour stocker les informations de collision
-        boolean hasCollided = false;
-        float normalX = 0, normalY = 0;
-        float minPenetration = Float.MAX_VALUE;
-        
-        // Vérifier les cellules voisines
-        for (int y = Math.max(0, gridY - 1); y <= Math.min(rows - 1, gridY + 1); y++) {
-            for (int x = Math.max(0, gridX - 1); x <= Math.min(cols - 1, gridX + 1); x++) {
-                // Si c'est un mur
-                if (y >= 0 && y < rows && x >= 0 && x < cols && mazeGrid[y][x] == 1) {
-                    // Coordonnées du coin supérieur gauche du mur
-                    float wallX = x * cellSize;
-                    float wallY = y * cellSize;
+        // Vérifier les 9 cellules autour de la position actuelle de la balle
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                int checkX = gridX + dx;
+                int checkY = gridY + dy;
+                
+                // Vérifier que les indices sont valides
+                if (checkX >= 0 && checkX < cols && 
+                    checkY >= 0 && checkY < rows) {
                     
-                    // Trouver le point du mur le plus proche du centre de la balle
-                    float closestX = Math.max(wallX, Math.min(ballX, wallX + cellSize));
-                    float closestY = Math.max(wallY, Math.min(ballY, wallY + cellSize));
-                    
-                    // Calculer la distance entre ce point et le centre de la balle
-                    float distanceX = ballX - closestX;
-                    float distanceY = ballY - closestY;
-                    float distanceSquared = distanceX * distanceX + distanceY * distanceY;
-                    
-                    // S'il y a collision
-                    if (distanceSquared < ballRadius * ballRadius) {
-                        hasCollided = true;
+                    // Si la cellule est un mur, vérifier la collision
+                    if (mazeGrid[checkY][checkX] == 1) {
+                        // Coordonnées du coin supérieur gauche du mur
+                        float wallLeft = mazeOffsetX + checkX * cellSize;
+                        float wallTop = mazeOffsetY + checkY * cellSize;
                         
-                        // Calculer la profondeur de pénétration
-                        float distance = (float) Math.sqrt(distanceSquared);
-                        float penetration = ballRadius - distance;
+                        // Coordonnées du coin inférieur droit du mur
+                        float wallRight = wallLeft + cellSize;
+                        float wallBottom = wallTop + cellSize;
                         
-                        // Calculer la normale de collision (éviter division par zéro)
-                        float nx = (distance > 0.0001f) ? distanceX / distance : 0;
-                        float ny = (distance > 0.0001f) ? distanceY / distance : 0;
+                        // Trouver le point du mur le plus proche du centre de la balle
+                        float closestX = Math.max(wallLeft, Math.min(ballX, wallRight));
+                        float closestY = Math.max(wallTop, Math.min(ballY, wallBottom));
                         
-                        // Si cette collision est plus significative (pénétration plus profonde)
-                        if (penetration < minPenetration) {
-                            minPenetration = penetration;
-                            normalX = nx;
-                            normalY = ny;
+                        // Calculer la distance entre ce point et le centre de la balle
+                        float distanceX = ballX - closestX;
+                        float distanceY = ballY - closestY;
+                        float distanceSquared = distanceX * distanceX + distanceY * distanceY;
+                        
+                        // S'il y a collision
+                        if (distanceSquared < ballRadius * ballRadius) {
+                            // Calcul de la normale et de la pénétration
+                            float distance = (float) Math.sqrt(distanceSquared);
+                            info.hasCollided = true;
+                            
+                            // Éviter la division par zéro
+                            info.normalX = (distance > 0.0001f) ? distanceX / distance : 0;
+                            info.normalY = (distance > 0.0001f) ? distanceY / distance : 0;
+                            
+                            info.penetration = ballRadius - distance;
+                            info.wallX = closestX;
+                            info.wallY = closestY;
+                            
+                            return info; // Retourner dès la première collision
                         }
                     }
                 }
             }
         }
         
-        return new CollisionInfo(hasCollided, normalX, normalY, minPenetration);
+        return info; // Pas de collision
     }
     
     /**
@@ -99,29 +117,28 @@ public class MazeCollisionHandler {
      * @param dampingFactor Facteur d'amortissement pour le rebond
      */
     public void resolveCollision(CollisionInfo collision, float[] velocity, float dampingFactor) {
-        if (collision.hasCollided) {
-            // Calculer la composante de la vitesse dans la direction de la normale
-            float dotProduct = velocity[0] * collision.normalX + velocity[1] * collision.normalY;
-            
-            // Calculer la nouvelle vitesse (réflexion + amortissement)
-            velocity[0] = velocity[0] - 2 * dotProduct * collision.normalX * dampingFactor;
-            velocity[1] = velocity[1] - 2 * dotProduct * collision.normalY * dampingFactor;
-        }
+        if (!collision.hasCollided) return;
+        
+        // Calculer le produit scalaire entre la vélocité et la normale
+        float dotProduct = velocity[0] * collision.normalX + velocity[1] * collision.normalY;
+        
+        // Si la balle s'éloigne déjà du mur, ne pas appliquer de rebond
+        if (dotProduct > 0) return;
+        
+        // Calculer la vélocité de rebond (réflexion)
+        velocity[0] = velocity[0] - 2 * dotProduct * collision.normalX * dampingFactor;
+        velocity[1] = velocity[1] - 2 * dotProduct * collision.normalY * dampingFactor;
     }
     
     /**
      * Classe pour stocker les informations de collision
      */
     public static class CollisionInfo {
-        public boolean hasCollided;   // Indique s'il y a eu collision
-        public float normalX, normalY; // Vecteur normal à la surface de collision
-        public float penetration;     // Profondeur de pénétration
-        
-        public CollisionInfo(boolean hasCollided, float normalX, float normalY, float penetration) {
-            this.hasCollided = hasCollided;
-            this.normalX = normalX;
-            this.normalY = normalY;
-            this.penetration = penetration;
-        }
+        public boolean hasCollided = false;
+        public float normalX = 0;
+        public float normalY = 0;
+        public float penetration = 0;
+        public float wallX = 0;
+        public float wallY = 0;
     }
 } 
