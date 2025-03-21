@@ -1,6 +1,7 @@
 package com.example.gameapp;
 
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -8,7 +9,9 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Point;
+import android.graphics.RectF;
 import android.view.Display;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.WindowManager;
@@ -21,7 +24,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
     private MazePainter mazePainter;
 
-
     private Context context;
 
     // Variables pour le cercle
@@ -29,6 +31,13 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private float circleY; // Position Y du centre du cercle
     private float circleRadius = 12; // Rayon du cercle en pixels
     private Paint circlePaint; // Pinceau pour dessiner le cercle
+    
+    // Variables pour les boutons
+    private RectF backButtonRect;
+    private RectF pauseButtonRect;
+    private Paint buttonPaint;
+    private Paint buttonTextPaint;
+    private boolean isPaused = false;
     
     // Variables pour la physique de la balle
     private float velocityX = 0;
@@ -93,8 +102,19 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
         // Création et configuration du pinceau pour le cercle
         circlePaint = new Paint();
-        circlePaint.setColor(Color.BLUE); // Couleur différente du carré
+        circlePaint.setColor(Color.WHITE); // Couleur différente du carré
         circlePaint.setAntiAlias(true); // Pour un rendu plus lisse
+        
+        // Initialisation des pinceaux pour les boutons
+        buttonPaint = new Paint();
+        buttonPaint.setColor(Color.argb(180, 50, 50, 50)); // Gris semi-transparent
+        buttonPaint.setAntiAlias(true);
+        
+        buttonTextPaint = new Paint();
+        buttonTextPaint.setColor(Color.WHITE);
+        buttonTextPaint.setTextSize(40);
+        buttonTextPaint.setTextAlign(Paint.Align.CENTER);
+        buttonTextPaint.setAntiAlias(true);
         
         // Initialisation du pinceau pour les murs du labyrinthe
         wallPaint = new Paint();
@@ -293,6 +313,26 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         screenWidth = width;
         screenHeight = height;
         
+        // Initialiser les rectangles des boutons
+        int buttonSize = Math.min(width, height) / 10;
+        int padding = buttonSize / 4;
+        
+        // Bouton de retour en haut à gauche
+        backButtonRect = new RectF(
+            padding,
+            padding,
+            padding + buttonSize,
+            padding + buttonSize
+        );
+        
+        // Bouton de pause en haut à droite
+        pauseButtonRect = new RectF(
+            width - padding - buttonSize,
+            padding,
+            width - padding,
+            padding + buttonSize
+        );
+        
         // Mettre à jour les dimensions de l'écran pour le gestionnaire de bonus
         if (bonusManager != null) {
             bonusManager.updateScreenDimensions(width, height);
@@ -347,7 +387,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     public void draw(Canvas canvas) {
         super.draw(canvas);
         if (canvas != null) {
-            canvas.drawColor(Color.WHITE);
+            canvas.drawColor(Color.DKGRAY);
             
             // Sauvegarder l'état actuel du canvas
             canvas.save();
@@ -411,10 +451,48 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             
             // Dessiner la jauge de lucidité
             lucidityManager.drawLucidityGauge(canvas, screenWidth, screenHeight);
+            
+            // Dessiner les boutons
+            if (backButtonRect != null && pauseButtonRect != null) {
+                // Bouton de retour
+                canvas.drawRoundRect(backButtonRect, 10, 10, buttonPaint);
+                canvas.drawText("←", 
+                    backButtonRect.left + backButtonRect.width() / 2,
+                    backButtonRect.top + backButtonRect.height() / 2 + buttonTextPaint.getTextSize() / 3, 
+                    buttonTextPaint);
+                
+                // Bouton de pause
+                canvas.drawRoundRect(pauseButtonRect, 10, 10, buttonPaint);
+                if (isPaused) {
+                    canvas.drawText("▶", 
+                        pauseButtonRect.left + pauseButtonRect.width() / 2,
+                        pauseButtonRect.top + pauseButtonRect.height() / 2 + buttonTextPaint.getTextSize() / 3, 
+                        buttonTextPaint);
+                } else {
+                    canvas.drawText("❚❚", 
+                        pauseButtonRect.left + pauseButtonRect.width() / 2,
+                        pauseButtonRect.top + pauseButtonRect.height() / 2 + buttonTextPaint.getTextSize() / 3, 
+                        buttonTextPaint);
+                }
+            }
+            
+            // Si le jeu est en pause, afficher un message
+            if (isPaused) {
+                Paint pauseTextPaint = new Paint(buttonTextPaint);
+                pauseTextPaint.setTextSize(80);
+                pauseTextPaint.setColor(Color.WHITE);
+                canvas.drawText("PAUSE", 
+                    screenWidth / 2,
+                    screenHeight / 2, 
+                    pauseTextPaint);
+            }
         }
     }
     
     public void update() {
+        // Si le jeu est en pause, ne pas mettre à jour
+        if (isPaused) return;
+        
         // Mise à jour du gestionnaire de lucidité
         lucidityManager.update();
         if(lucidityManager.getLucidity() == 0.0){
@@ -768,5 +846,66 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         if (velocityX < -maxSpeed) velocityX = -maxSpeed;
         if (velocityY > maxSpeed) velocityY = maxSpeed;
         if (velocityY < -maxSpeed) velocityY = -maxSpeed;
+    }
+
+    /**
+     * Gère les événements tactiles pour interagir avec les boutons
+     */
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        // Événement tactile détecté
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            float touchX = event.getX();
+            float touchY = event.getY();
+            
+            // Vérifier si on a touché le bouton de retour
+            if (backButtonRect.contains(touchX, touchY)) {
+                // Retourner au menu principal
+                returnToMainMenu();
+                return true;
+            }
+            
+            // Vérifier si on a touché le bouton de pause
+            if (pauseButtonRect.contains(touchX, touchY)) {
+                // Inverser l'état de pause
+                togglePause();
+                return true;
+            }
+        }
+        
+        return super.onTouchEvent(event);
+    }
+    
+    /**
+     * Inverse l'état de pause du jeu
+     */
+    private void togglePause() {
+        isPaused = !isPaused;
+        
+        // Si on entre en pause, sauvegarder la lucidité actuelle
+        if (isPaused && context instanceof GameActivity) {
+            float currentLucidity = getLucidityValue();
+            ((GameActivity) context).saveCurrentLucidity(currentLucidity);
+        }
+    }
+    
+    /**
+     * Renvoie au menu principal
+     */
+    private void returnToMainMenu() {
+        // Arrêter le thread du jeu
+        thread.setRunning(false);
+        
+        // Créer une intention pour démarrer l'activité principale
+        Intent intent = new Intent(context, MainActivity.class);
+        
+        // Ajouter le drapeau pour effacer la pile d'activités
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        
+        // Démarrer l'activité principale
+        context.startActivity(intent);
+        
+        // Terminer l'activité du jeu
+        ((android.app.Activity)context).finish();
     }
 }

@@ -123,4 +123,19 @@ public class GameActivity extends Activity implements SensorEventListener {
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
         // Non utilisé pour l'instant, mais doit être implémenté
     }
+    
+    /**
+     * Sauvegarde la lucidité actuelle
+     * @param lucidity Valeur de lucidité à sauvegarder
+     */
+    public void saveCurrentLucidity(float lucidity) {
+        // Sauvegarder la lucidité
+        this.savedLucidity = lucidity;
+        
+        // Sauvegarder dans les préférences partagées pour la persistance
+        SharedPreferences prefs = getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putFloat(KEY_LUCIDITY, lucidity);
+        editor.apply();
+    }
 }

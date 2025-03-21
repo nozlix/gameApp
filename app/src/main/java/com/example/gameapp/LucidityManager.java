@@ -175,20 +175,58 @@ public class LucidityManager {
      * @param screenHeight Hauteur de l'écran
      */
     public void drawLucidityGauge(Canvas canvas, int screenWidth, int screenHeight) {
-        // Dimensions et position de la jauge
-        float gaugeHeight = 30;
-        float gaugeWidth = screenWidth * 0.8f;
-        float gaugeX = screenWidth * 0.1f;
-        float gaugeY = screenHeight - gaugeHeight - 20;
+        boolean isLandscape = screenWidth > screenHeight;
         
-        // Dessiner le fond de la jauge
-        canvas.drawRect(gaugeX, gaugeY, gaugeX + gaugeWidth, gaugeY + gaugeHeight, lucidityGaugeBackgroundPaint);
-        
-        // Dessiner la jauge de lucidité
-        canvas.drawRect(gaugeX, gaugeY, gaugeX + gaugeWidth * lucidity, gaugeY + gaugeHeight, lucidityGaugePaint);
-        
-        // Dessiner le texte "Lucidité"
-        canvas.drawText("Lucidité: " + (int)(lucidity * 100) + "%", gaugeX + 10, gaugeY + gaugeHeight - 5, lucidityTextPaint);
+        if (isLandscape) {
+            // Mode paysage : jauge verticale sur le côté gauche
+            float gaugeWidth = 40;  // Un peu plus large pour meilleure visibilité
+            float gaugeHeight = screenHeight * 0.6f;  // Légèrement plus courte
+            float gaugeX = 20; // Marge à gauche
+            float gaugeY = screenHeight * 0.2f;  // Centrer davantage
+            
+            // Dessiner le fond de la jauge
+            canvas.drawRect(gaugeX, gaugeY, gaugeX + gaugeWidth, gaugeY + gaugeHeight, lucidityGaugeBackgroundPaint);
+            
+            // Dessiner la jauge de lucidité (de bas en haut)
+            canvas.drawRect(
+                gaugeX, 
+                gaugeY + gaugeHeight * (1 - lucidity), 
+                gaugeX + gaugeWidth, 
+                gaugeY + gaugeHeight, 
+                lucidityGaugePaint
+            );
+            
+            // Augmenter la taille du texte pour le mode paysage
+            float originalTextSize = lucidityTextPaint.getTextSize();
+            lucidityTextPaint.setTextSize(36);
+            
+            // Dessiner le pourcentage au-dessus de la jauge
+            String percentText = (int)(lucidity * 100) + "%";
+            canvas.drawText(
+                percentText,
+                gaugeX + gaugeWidth / 2 - lucidityTextPaint.measureText(percentText) / 2,
+                gaugeY - 15,
+                lucidityTextPaint
+            );
+            
+            // Restaurer la taille du texte
+            lucidityTextPaint.setTextSize(originalTextSize);
+        } else {
+            // Mode portrait : jauge horizontale en bas
+            float gaugeHeight = 30;
+            float gaugeWidth = screenWidth * 0.8f;
+            float gaugeX = screenWidth * 0.1f;
+            float gaugeY = screenHeight - gaugeHeight - 20;
+            
+            // Dessiner le fond de la jauge
+            canvas.drawRect(gaugeX, gaugeY, gaugeX + gaugeWidth, gaugeY + gaugeHeight, lucidityGaugeBackgroundPaint);
+            
+            // Dessiner la jauge de lucidité
+            canvas.drawRect(gaugeX, gaugeY, gaugeX + gaugeWidth * lucidity, gaugeY + gaugeHeight, lucidityGaugePaint);
+            
+            // Dessiner le texte "Lucidité"
+            canvas.drawText("Lucidité: " + (int)(lucidity * 100) + "%", gaugeX + 10, gaugeY + gaugeHeight - 5, lucidityTextPaint);
+        }
     }
     
     /**
