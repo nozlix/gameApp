@@ -47,26 +47,8 @@ public class GameActivity extends Activity implements SensorEventListener {
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 
-        // Récupérer les préférences partagées
-        SharedPreferences sharedPref = this.getPreferences(Context.MODE_PRIVATE);
-
-        // Récupérer le nombre de lancements précédents (par défaut 0)
-        int nb_lancements = sharedPref.getInt("nb_lancements", 0);
-
-        // Incrémenter le compteur de lancements
-        nb_lancements++;
-
-        // Calculer la nouvelle valeur de y
-        int valeur_y = (100 * nb_lancements) % 400;
-
-        // Sauvegarder les nouvelles valeurs
-        SharedPreferences.Editor editor = sharedPref.edit();
-        editor.putInt("nb_lancements", nb_lancements);
-        editor.putInt("valeur_y", valeur_y);
-        editor.apply();
-
-        // Créer et configurer GameView avec la valeur de y mise à jour
-        gameView = new GameView(this, valeur_y, savedLucidity);
+        // Créer et configurer GameView avec la lucidité sauvegardée
+        gameView = new GameView(this, savedLucidity);
         setContentView(gameView);
     }
 
@@ -140,5 +122,20 @@ public class GameActivity extends Activity implements SensorEventListener {
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
         // Non utilisé pour l'instant, mais doit être implémenté
+    }
+    
+    /**
+     * Sauvegarde la lucidité actuelle
+     * @param lucidity Valeur de lucidité à sauvegarder
+     */
+    public void saveCurrentLucidity(float lucidity) {
+        // Sauvegarder la lucidité
+        this.savedLucidity = lucidity;
+        
+        // Sauvegarder dans les préférences partagées pour la persistance
+        SharedPreferences prefs = getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putFloat(KEY_LUCIDITY, lucidity);
+        editor.apply();
     }
 }

@@ -1,6 +1,10 @@
 package com.example.gameapp;
 
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Paint;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -43,6 +47,10 @@ public class BonusManager {
     private float mazeOffsetX = 0;
     private float mazeOffsetY = 0;
     
+    // Image du cachet pour les bonus
+    private Bitmap cachetImage;
+    private Context context;
+    
     /**
      * Constructeur
      * @param screenWidth Largeur de l'écran
@@ -51,6 +59,23 @@ public class BonusManager {
     public BonusManager(int screenWidth, int screenHeight) {
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
+    }
+    
+    /**
+     * Définit le contexte pour charger les ressources
+     * @param context Le contexte de l'application
+     */
+    public void setContext(Context context) {
+        this.context = context;
+        // Charger l'image du cachet
+        if (cachetImage == null && context != null) {
+            cachetImage = BitmapFactory.decodeResource(context.getResources(), R.drawable.pill);
+            // Redimensionner l'image si nécessaire
+            if (cachetImage != null && cellSize > 0) {
+                int bonusSize = (int)(cellSize * 0.8f);
+                cachetImage = Bitmap.createScaledBitmap(cachetImage, bonusSize, bonusSize, true);
+            }
+        }
     }
     
     /**
@@ -71,6 +96,12 @@ public class BonusManager {
     public void updateMazeGrid(int[][] mazeGrid, float cellSize) {
         this.mazeGrid = mazeGrid;
         this.cellSize = cellSize;
+        
+        // Redimensionner l'image du cachet si nécessaire
+        if (cachetImage != null && context != null) {
+            int bonusSize = (int)(cellSize * 0.8f);
+            cachetImage = Bitmap.createScaledBitmap(cachetImage, bonusSize, bonusSize, true);
+        }
     }
     
     /**
@@ -167,7 +198,12 @@ public class BonusManager {
             
             if (isFreeCell && distanceSquared > minDistanceSquared && distanceSquared < maxDistanceSquared) {
                 // Position valide, créer le bonus
-                bonusList.add(new Bonus(bonusX, bonusY, value));
+                Bonus bonus = new Bonus(bonusX, bonusY, value);
+                // Si l'image du cachet est disponible, définir la taille du bonus en fonction
+                if (cachetImage != null) {
+                    bonus.setImage(cachetImage);
+                }
+                bonusList.add(bonus);
                 return;
             }
             
@@ -346,5 +382,134 @@ public class BonusManager {
         if (bonusList.isEmpty() && bonusCount > 0) {
             framesSinceLastSpawn = MIN_SPAWN_DELAY + 1;
         }
+    }
+}
+
+/**
+ * Classe représentant un bonus qui peut être collecté par le joueur
+ */
+class Bonus {
+    private float x, y;         // Position du bonus
+    private float size = 20;    // Taille du bonus (diamètre)
+    private float value;        // Valeur du bonus (entre 0.0 et 1.0)
+    private boolean active = true; // Si le bonus est actif
+    private Paint paint;        // Pinceau pour dessiner le bonus
+    private Bitmap image;       // Image pour représenter le bonus (cachet)
+    
+    /**
+     * Constructeur
+     * @param x Position X du bonus
+     * @param y Position Y du bonus
+     * @param value Valeur du bonus (entre 0.0 et 1.0)
+     */
+    public Bonus(float x, float y, float value) {
+        this.x = x;
+        this.y = y;
+        this.value = value;
+        
+        // Initialiser le pinceau
+        paint = new Paint();
+        paint.setARGB(255, 255, 255, 0); // Jaune opaque
+        paint.setAntiAlias(true);
+    }
+    
+    /**
+     * Définit l'image à utiliser pour ce bonus
+     * @param image Bitmap de l'image
+     */
+    public void setImage(Bitmap image) {
+        this.image = image;
+        if (image != null) {
+            // Ajuster la taille en fonction de l'image
+            this.size = Math.max(image.getWidth(), image.getHeight());
+        }
+    }
+    
+    /**
+     * Dessine le bonus sur le canvas
+     * @param canvas Canvas sur lequel dessiner
+     */
+    public void draw(Canvas canvas) {
+        if (!active) return;
+        
+        if (image != null) {
+            // Dessiner l'image au lieu du cercle
+            canvas.drawBitmap(image, x - image.getWidth()/2, y - image.getHeight()/2, null);
+        } else {
+            // Fallback : dessiner un cercle jaune
+            canvas.drawCircle(x, y, size/2, paint);
+        }
+    }
+    
+    /**
+     * Vérifie si la balle est en collision avec ce bonus
+     * @param ballX Position X de la balle
+     * @param ballY Position Y de la balle
+     * @param ballRadius Rayon de la balle
+     * @return Vrai si la balle entre en collision avec le bonus
+     */
+    public boolean checkCollision(float ballX, float ballY, float ballRadius) {
+        if (!active) return false;
+        
+        // Calculer la distance au carré entre les centres
+        float dx = ballX - x;
+        float dy = ballY - y;
+        float distanceSquared = dx * dx + dy * dy;
+        
+        // Calculer le rayon de collision (somme des rayons)
+        float collisionRadius = ballRadius + size/2;
+        
+        // S'il y a collision
+        return distanceSquared < collisionRadius * collisionRadius;
+    }
+    
+    /**
+     * Collecte le bonus
+     * @return La valeur du bonus
+     */
+    public float collect() {
+        active = false;
+        return value;
+    }
+    
+    /**
+     * Désactive le bonus (par exemple s'il se retrouve dans un mur)
+     */
+    public void deactivate() {
+        active = false;
+    }
+    
+    /**
+     * Vérifie si le bonus est actif
+     * @return Vrai si le bonus est actif
+     */
+    public boolean isActive() {
+        return active;
+    }
+    
+    /**
+     * Récupère la position X du bonus
+     * @return Position X
+     */
+    public float getX() {
+        return x;
+    }
+    
+    /**
+     * Récupère la position Y du bonus
+     * @return Position Y
+     */
+    public float getY() {
+        return y;
+    }
+    
+    /**
+     * Définit la position du bonus
+     * @param x Nouvelle position X
+     * @param y Nouvelle position Y
+     */
+    public void setPosition(float x, float y) {
+        this.x = x;
+        this.y = y;
     }
 } 

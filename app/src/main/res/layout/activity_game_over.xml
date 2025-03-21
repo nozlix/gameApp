@@ -12,8 +12,8 @@
         android:id="@+id/imageGameOver"
         android:layout_width="307dp"
         android:layout_height="122dp"
-        android:layout_marginStart="56dp"
-        android:layout_marginTop="256dp"
+        android:layout_marginStart="152dp"
+        android:layout_marginTop="260dp"
         android:src="@drawable/title_game_over"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
