@@ -9,6 +9,10 @@ import android.view.Display;
 import android.view.WindowManager;
 
 public class MazePainter {
+    public int[][] getLabyrinth() {
+        return labyrinth;
+    }
+
     private int[][] labyrinth;
 
     private int cellSize;
@@ -47,7 +51,7 @@ public class MazePainter {
         }
     }
 
-    private void calculateLabyrinthDimensions() {
+    public void calculateLabyrinthDimensions() {
         // Get the screen dimensions
         WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         Display display = wm.getDefaultDisplay();

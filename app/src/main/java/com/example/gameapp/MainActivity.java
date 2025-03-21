@@ -1,48 +1,42 @@
 package com.example.gameapp;
 
 import android.app.Activity;
-import android.content.Context;
-import android.content.SharedPreferences;
+import android.content.Intent;
+import android.graphics.drawable.AnimationDrawable;
 import android.os.Bundle;
-import android.view.Window;
-import android.view.WindowManager;
+import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
+import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.TextView;
 
-import androidx.activity.EdgeToEdge;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
+import androidx.constraintlayout.widget.ConstraintLayout;
 
 public class MainActivity extends Activity {
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        //EdgeToEdge.enable(this);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        this.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        // Récupérer les préférences partagées
-        SharedPreferences sharedPref = this.getPreferences(Context.MODE_PRIVATE);
+        setContentView(R.layout.activity_main);
 
-        // Récupérer le nombre de lancements précédents (par défaut 0)
-        int nb_lancements = sharedPref.getInt("nb_lancements", 0);
+        // Configuration du bouton pour lancer le jeu
+        Button startGameButton = findViewById(R.id.buttonStartGame);
 
-        // Incrémenter le compteur de lancements
-        nb_lancements++;
+        ConstraintLayout layout = findViewById(R.id.main);
+        AnimationDrawable animationDrawable = (AnimationDrawable) layout.getBackground();
+        animationDrawable.setEnterFadeDuration(500);
+        animationDrawable.setExitFadeDuration(500);
+        animationDrawable.start();
 
-        // Calculer la nouvelle valeur de y
-        int valeur_y = (100 * nb_lancements) % 400;
+        ImageView titleImage = findViewById(R.id.titleImage);
 
-        // Sauvegarder les nouvelles valeurs
-        SharedPreferences.Editor editor = sharedPref.edit();
-        editor.putInt("nb_lancements", nb_lancements);
-        editor.putInt("valeur_y", valeur_y);
-        editor.apply();
+        // Charger et appliquer l'animation
+        Animation moveTitleAnimation = AnimationUtils.loadAnimation(this, R.anim.move_title);
+        titleImage.startAnimation(moveTitleAnimation);
+    }
 
-        // Afficher GameView avec la valeur de y mise à jour
-        setContentView(new GameView(this, valeur_y));
-
-
+    public void startGameactivity(View view){
+        Intent intent = new Intent(MainActivity.this, GameActivity.class);
+        startActivity(intent);
     }
 }
